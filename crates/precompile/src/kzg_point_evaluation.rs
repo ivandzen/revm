@@ -3,6 +3,7 @@
 use crate::{
     crypto, Address, Precompile, PrecompileError, PrecompileId, PrecompileOutput, PrecompileResult,
 };
+#[cfg(feature = "bls-precompile")]
 pub mod arkworks;
 
 #[cfg(feature = "blst")]
@@ -76,10 +77,10 @@ pub fn kzg_to_versioned_hash(commitment: &[u8]) -> [u8; 32] {
 /// Verify KZG proof.
 #[inline]
 pub fn verify_kzg_proof(
-    commitment: &[u8; 48],
-    z: &[u8; 32],
-    y: &[u8; 32],
-    proof: &[u8; 48],
+    _commitment: &[u8; 48],
+    _z: &[u8; 32],
+    _y: &[u8; 32],
+    _proof: &[u8; 48],
 ) -> bool {
     cfg_if::cfg_if! {
         if #[cfg(feature = "c-kzg")] {
@@ -89,11 +90,13 @@ pub fn verify_kzg_proof(
             let as_bytes32 = |bytes: &[u8; 32]| -> &Bytes32 { unsafe { &*bytes.as_ptr().cast() } };
 
             let kzg_settings = c_kzg::ethereum_kzg_settings(8);
-            kzg_settings.verify_kzg_proof(as_bytes48(commitment), as_bytes32(z), as_bytes32(y), as_bytes48(proof)).unwrap_or(false)
+            kzg_settings.verify_kzg_proof(as_bytes48(_commitment), as_bytes32(_z), as_bytes32(_y), as_bytes48(_proof)).unwrap_or(false)
         } else if #[cfg(feature = "blst")] {
-            blst::verify_kzg_proof(commitment, z, y, proof)
+            blst::verify_kzg_proof(_commitment, _z, _y, _proof)
+        } else if #[cfg(feature = "bls-precompile")] {
+            arkworks::verify_kzg_proof(_commitment, _z, _y, _proof)
         } else {
-            arkworks::verify_kzg_proof(commitment, z, y, proof)
+            false
         }
     }
 }

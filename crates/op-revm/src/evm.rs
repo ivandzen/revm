@@ -32,12 +32,16 @@ impl<CTX: ContextTr<Cfg: Cfg<Spec: Into<OpSpecId> + Clone>>, INSP>
     /// Create a new Optimism EVM.
     pub fn new(ctx: CTX, inspector: INSP) -> Self {
         let spec: OpSpecId = ctx.cfg().spec().into();
+        #[cfg(target_os = "solana")]
+        let frame_stack = FrameStack::new();
+        #[cfg(not(target_os = "solana"))]
+        let frame_stack = FrameStack::new_prealloc(8);
         Self(Evm {
             ctx,
             inspector,
             instruction: EthInstructions::new_mainnet_with_spec(spec.into()),
             precompiles: OpPrecompiles::new_with_spec(spec),
-            frame_stack: FrameStack::new_prealloc(8),
+            frame_stack,
         })
     }
 

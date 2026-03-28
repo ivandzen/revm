@@ -5,9 +5,6 @@ use secp256k1::{
     Message, SECP256K1,
 };
 
-// Silence the unused crate dependency warning.
-use k256 as _;
-
 /// Recover the public key from a signature and a message.
 ///
 /// This function is using the `secp256k1` crate, it is enabled by `secp256k1` feature and it is in default.

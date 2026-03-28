@@ -3,7 +3,7 @@ use context::{
     result::{ExecutionResult, ResultGas},
     ContextTr, JournalEntry, JournalTr, Transaction,
 };
-use handler::{evm::FrameTr, EvmTr, FrameResult, Handler, ItemOrResult};
+use handler::{evm::FrameTr, EvmTr, FrameResult, Handler, ItemOrResult, ItemOrResultOrSuspend};
 use interpreter::{
     instructions::InstructionTable,
     interpreter_types::{Jumps, LoopControl},
@@ -11,6 +11,12 @@ use interpreter::{
     InterpreterTypes,
 };
 use state::bytecode::opcode;
+
+/// Result of inspected execution loop.
+pub enum InspectExecOutcome {
+    Completed(FrameResult),
+    Suspended,
+}
 
 /// Trait that extends [`Handler`] with inspection functionality.
 ///
@@ -74,16 +80,31 @@ where
         evm: &mut Self::Evm,
         init_and_floor_gas: &InitialAndFloorGas,
     ) -> Result<FrameResult, Self::Error> {
+        match self.inspect_execution_controlled(evm, init_and_floor_gas)? {
+            InspectExecOutcome::Completed(frame_result) => Ok(frame_result),
+            InspectExecOutcome::Suspended => self.on_execution_suspended(evm),
+        }
+    }
+
+    /// Run execution loop with inspection support and expose suspension.
+    fn inspect_execution_controlled(
+        &mut self,
+        evm: &mut Self::Evm,
+        init_and_floor_gas: &InitialAndFloorGas,
+    ) -> Result<InspectExecOutcome, Self::Error> {
         let gas_limit = evm.ctx().tx().gas_limit() - init_and_floor_gas.initial_gas;
         // Create first frame action
         let first_frame_input = self.first_frame_input(evm, gas_limit)?;
 
         // Run execution loop
-        let mut frame_result = self.inspect_run_exec_loop(evm, first_frame_input)?;
+        let mut frame_result = match self.inspect_run_exec_loop(evm, first_frame_input)? {
+            InspectExecOutcome::Completed(frame_result) => frame_result,
+            InspectExecOutcome::Suspended => return Ok(InspectExecOutcome::Suspended),
+        };
 
         // Handle last frame result
         self.last_frame_result(evm, &mut frame_result)?;
-        Ok(frame_result)
+        Ok(InspectExecOutcome::Completed(frame_result))
     }
 
     /* FRAMES */
@@ -100,18 +121,18 @@ where
         &mut self,
         evm: &mut Self::Evm,
         first_frame_input: <<Self::Evm as EvmTr>::Frame as FrameTr>::FrameInit,
-    ) -> Result<FrameResult, Self::Error> {
+    ) -> Result<InspectExecOutcome, Self::Error> {
         let res = evm.inspect_frame_init(first_frame_input)?;
 
         if let ItemOrResult::Result(frame_result) = res {
-            return Ok(frame_result);
+            return Ok(InspectExecOutcome::Completed(frame_result));
         }
 
         loop {
             let call_or_result = evm.inspect_frame_run()?;
 
             let result = match call_or_result {
-                ItemOrResult::Item(init) => {
+                ItemOrResultOrSuspend::Item(init) => {
                     match evm.inspect_frame_init(init)? {
                         ItemOrResult::Item(_) => {
                             continue;
@@ -120,11 +141,12 @@ where
                         ItemOrResult::Result(result) => result,
                     }
                 }
-                ItemOrResult::Result(result) => result,
+                ItemOrResultOrSuspend::Result(result) => result,
+                ItemOrResultOrSuspend::Suspended => return Ok(InspectExecOutcome::Suspended),
             };
 
             if let Some(result) = evm.frame_return_result(result)? {
-                return Ok(result);
+                return Ok(InspectExecOutcome::Completed(result));
             }
         }
     }
@@ -254,6 +276,180 @@ where
     }
 
     next_action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{NoOpInspector, traits::InspectorEvmTr};
+    use context::{Context, FrameStack};
+    use context::result::{EVMError, HaltReason};
+    use database::BenchmarkDB;
+    use handler::{
+        evm::{ContextDbError, FrameInitResult},
+        instructions::EthInstructions,
+        EthFrame, EthPrecompiles, EvmTr, FrameInitOrResultOrSuspend, MainContext, MainnetContext,
+    };
+    use interpreter::interpreter::EthInterpreter;
+    use state::Bytecode;
+
+    struct MockInspectorEvm {
+        ctx: MainnetContext<BenchmarkDB>,
+        instruction: EthInstructions<EthInterpreter, MainnetContext<BenchmarkDB>>,
+        precompiles: EthPrecompiles,
+        frames: FrameStack<EthFrame<EthInterpreter>>,
+        frame: EthFrame<EthInterpreter>,
+        inspector: NoOpInspector,
+    }
+
+    impl MockInspectorEvm {
+        fn new() -> Self {
+            let ctx = Context::mainnet().with_db(BenchmarkDB::new_bytecode(Bytecode::default()));
+            let spec = (*ctx.cfg.spec()).into();
+            Self {
+                ctx,
+                instruction: EthInstructions::new_mainnet_with_spec(spec),
+                precompiles: EthPrecompiles::new(spec),
+                frames: FrameStack::new(),
+                frame: EthFrame::default(),
+                inspector: NoOpInspector,
+            }
+        }
+    }
+
+    impl EvmTr for MockInspectorEvm {
+        type Context = MainnetContext<BenchmarkDB>;
+        type Instructions = EthInstructions<EthInterpreter, MainnetContext<BenchmarkDB>>;
+        type Precompiles = EthPrecompiles;
+        type Frame = EthFrame<EthInterpreter>;
+
+        fn all(
+            &self,
+        ) -> (
+            &Self::Context,
+            &Self::Instructions,
+            &Self::Precompiles,
+            &FrameStack<Self::Frame>,
+        ) {
+            (&self.ctx, &self.instruction, &self.precompiles, &self.frames)
+        }
+
+        fn all_mut(
+            &mut self,
+        ) -> (
+            &mut Self::Context,
+            &mut Self::Instructions,
+            &mut Self::Precompiles,
+            &mut FrameStack<Self::Frame>,
+        ) {
+            (
+                &mut self.ctx,
+                &mut self.instruction,
+                &mut self.precompiles,
+                &mut self.frames,
+            )
+        }
+
+        fn frame_init(
+            &mut self,
+            _frame_input: <Self::Frame as FrameTr>::FrameInit,
+        ) -> Result<FrameInitResult<'_, Self::Frame>, ContextDbError<Self::Context>> {
+            Ok(ItemOrResult::Item(&mut self.frame))
+        }
+
+        fn frame_run(
+            &mut self,
+        ) -> Result<FrameInitOrResultOrSuspend<Self::Frame>, ContextDbError<Self::Context>> {
+            Ok(ItemOrResultOrSuspend::Suspended)
+        }
+
+        fn frame_return_result(
+            &mut self,
+            _result: <Self::Frame as FrameTr>::FrameResult,
+        ) -> Result<Option<<Self::Frame as FrameTr>::FrameResult>, ContextDbError<Self::Context>>
+        {
+            unreachable!("frame_return_result is not called on suspended path");
+        }
+    }
+
+    impl InspectorEvmTr for MockInspectorEvm {
+        type Inspector = NoOpInspector;
+
+        fn all_inspector(
+            &self,
+        ) -> (
+            &Self::Context,
+            &Self::Instructions,
+            &Self::Precompiles,
+            &FrameStack<Self::Frame>,
+            &Self::Inspector,
+        ) {
+            (
+                &self.ctx,
+                &self.instruction,
+                &self.precompiles,
+                &self.frames,
+                &self.inspector,
+            )
+        }
+
+        fn all_mut_inspector(
+            &mut self,
+        ) -> (
+            &mut Self::Context,
+            &mut Self::Instructions,
+            &mut Self::Precompiles,
+            &mut FrameStack<Self::Frame>,
+            &mut Self::Inspector,
+        ) {
+            (
+                &mut self.ctx,
+                &mut self.instruction,
+                &mut self.precompiles,
+                &mut self.frames,
+                &mut self.inspector,
+            )
+        }
+
+        fn inspect_frame_run(
+            &mut self,
+        ) -> Result<FrameInitOrResultOrSuspend<Self::Frame>, ContextDbError<Self::Context>> {
+            Ok(ItemOrResultOrSuspend::Suspended)
+        }
+
+        fn inspect_frame_init(
+            &mut self,
+            _frame_init: <Self::Frame as FrameTr>::FrameInit,
+        ) -> Result<FrameInitResult<'_, Self::Frame>, ContextDbError<Self::Context>> {
+            Ok(ItemOrResult::Item(&mut self.frame))
+        }
+    }
+
+    struct TestInspectorHandler;
+
+    impl Handler for TestInspectorHandler {
+        type Evm = MockInspectorEvm;
+        type Error = EVMError<<BenchmarkDB as database_interface::Database>::Error>;
+        type HaltReason = HaltReason;
+    }
+
+    impl InspectorHandler for TestInspectorHandler {
+        type IT = EthInterpreter;
+    }
+
+    #[test]
+    fn inspector_run_exec_loop_returns_suspended_outcome() {
+        let mut handler = TestInspectorHandler;
+        let mut evm = MockInspectorEvm::new();
+        let first = interpreter::interpreter_action::FrameInit {
+            depth: 0,
+            memory: interpreter::SharedMemory::new(),
+            frame_input: interpreter::FrameInput::Empty,
+        };
+
+        let out = handler.inspect_run_exec_loop(&mut evm, first).unwrap();
+        assert!(matches!(out, InspectExecOutcome::Suspended));
+    }
 }
 
 #[inline(never)]

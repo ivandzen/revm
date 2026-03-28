@@ -8,15 +8,35 @@ use core::hash::{Hash, Hasher};
 use primitives::{
     eip7702,
     hardfork::SpecId::{self},
-    OnceLock, U256,
+    U256,
 };
+#[cfg(target_os = "solana")]
+use std::boxed::Box;
+#[cfg(not(target_os = "solana"))]
 use std::sync::Arc;
+
+#[cfg(target_os = "solana")]
+type GasTable = Box<[u64; 256]>;
+#[cfg(not(target_os = "solana"))]
+type GasTable = Arc<[u64; 256]>;
+
+#[inline]
+fn into_gas_table(table: [u64; 256]) -> GasTable {
+    #[cfg(target_os = "solana")]
+    {
+        return Box::new(table);
+    }
+    #[cfg(not(target_os = "solana"))]
+    {
+        Arc::new(table)
+    }
+}
 
 /// Gas table for dynamic gas constants.
 #[derive(Clone)]
 pub struct GasParams {
     /// Table of gas costs for operations
-    table: Arc<[u64; 256]>,
+    table: GasTable,
     /// Pointer to the table.
     ptr: *const u64,
 }
@@ -33,9 +53,9 @@ impl Hash for GasParams {
     }
 }
 
-/// Pointer points to Arc so it is safe to send across threads
+/// Pointer points to owned gas table storage so it is safe to send across threads
 unsafe impl Send for GasParams {}
-/// Pointer points to Arc so it is safe to access
+/// Pointer points to owned gas table storage so it is safe to access
 unsafe impl Sync for GasParams {}
 
 impl core::fmt::Debug for GasParams {
@@ -54,7 +74,7 @@ pub const fn num_words(len: usize) -> usize {
 impl Eq for GasParams {}
 #[cfg(feature = "serde")]
 mod serde {
-    use super::{Arc, GasParams};
+    use super::{into_gas_table, GasParams};
     use std::vec::Vec;
 
     #[derive(serde::Serialize, serde::Deserialize)]
@@ -84,7 +104,7 @@ mod serde {
             if table.table.len() != 256 {
                 return Err(serde::de::Error::custom("Invalid gas params length"));
             }
-            Ok(Self::new(Arc::new(table.table.try_into().unwrap())))
+            Ok(Self::new(into_gas_table(table.table.try_into().unwrap())))
         }
     }
 }
@@ -98,7 +118,7 @@ impl Default for GasParams {
 impl GasParams {
     /// Creates a new `GasParams` with the given table.
     #[inline]
-    pub fn new(table: Arc<[u64; 256]>) -> Self {
+    pub fn new(table: GasTable) -> Self {
         Self {
             ptr: table.as_ptr(),
             table,
@@ -125,7 +145,7 @@ impl GasParams {
         for (id, value) in values.into_iter() {
             table[id.as_usize()] = value;
         }
-        *self = Self::new(Arc::new(table));
+        *self = Self::new(into_gas_table(table));
     }
 
     /// Returns the table.
@@ -138,58 +158,27 @@ impl GasParams {
     #[inline(never)]
     pub fn new_spec(spec: SpecId) -> Self {
         use SpecId::*;
-        let gas_params = match spec {
-            FRONTIER | FRONTIER_THAWING => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+        match spec {
+            FRONTIER | FRONTIER_THAWING => Self::new_spec_inner(spec),
             // Transaction creation cost was added in homestead fork.
-            HOMESTEAD | DAO_FORK => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            HOMESTEAD | DAO_FORK => Self::new_spec_inner(spec),
             // New account cost for selfdestruct was added in tangerine fork.
-            TANGERINE => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            TANGERINE => Self::new_spec_inner(spec),
             // EXP cost was increased in spurious dragon fork.
-            SPURIOUS_DRAGON | BYZANTIUM | CONSTANTINOPLE | PETERSBURG => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            SPURIOUS_DRAGON | BYZANTIUM | CONSTANTINOPLE | PETERSBURG => Self::new_spec_inner(spec),
             // SSTORE gas calculation changed in istanbul fork.
-            ISTANBUL | MUIR_GLACIER => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            ISTANBUL | MUIR_GLACIER => Self::new_spec_inner(spec),
             // Warm/cold state access
-            BERLIN => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            BERLIN => Self::new_spec_inner(spec),
             // Refund reduction in london fork.
-            LONDON | ARROW_GLACIER | GRAY_GLACIER | MERGE => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            LONDON | ARROW_GLACIER | GRAY_GLACIER | MERGE => Self::new_spec_inner(spec),
             // Transaction initcode cost was introduced in shanghai fork.
-            SHANGHAI | CANCUN => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            SHANGHAI | CANCUN => Self::new_spec_inner(spec),
             // EIP-7702 was introduced in prague fork.
-            PRAGUE | OSAKA => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
+            PRAGUE | OSAKA => Self::new_spec_inner(spec),
             // New fork.
-            SpecId::AMSTERDAM => {
-                static TABLE: OnceLock<GasParams> = OnceLock::new();
-                TABLE.get_or_init(|| Self::new_spec_inner(spec))
-            }
-        };
-        gas_params.clone()
+            SpecId::AMSTERDAM => Self::new_spec_inner(spec),
+        }
     }
 
     /// Creates a new `GasParams` for the given spec.
@@ -315,7 +304,7 @@ impl GasParams {
             table[GasId::tx_floor_cost_base_gas().as_usize()] = 21000;
         }
 
-        Self::new(Arc::new(table))
+        Self::new(into_gas_table(table))
     }
 
     /// Gets the gas cost for the given gas id.

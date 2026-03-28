@@ -50,6 +50,8 @@ pub enum InterpreterAction {
     NewFrame(FrameInput),
     /// Interpreter finished execution.
     Return(InterpreterResult),
+    /// Interpreter suspended execution and yielded control to caller.
+    Suspend,
 }
 
 impl InterpreterAction {
@@ -69,6 +71,12 @@ impl InterpreterAction {
     #[inline]
     pub fn is_return(&self) -> bool {
         matches!(self, InterpreterAction::Return { .. })
+    }
+
+    /// Returns `true` if action is suspend.
+    #[inline]
+    pub fn is_suspend(&self) -> bool {
+        matches!(self, InterpreterAction::Suspend)
     }
 
     /// Returns [`Gas`] if action is return.
@@ -128,5 +136,11 @@ impl InterpreterAction {
             Bytes::new(),
             Gas::new(0),
         ))
+    }
+
+    /// Create suspend action.
+    #[inline]
+    pub fn new_suspend() -> Self {
+        Self::Suspend
     }
 }

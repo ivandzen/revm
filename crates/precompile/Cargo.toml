@@ -28,7 +28,7 @@ aurora-engine-modexp.workspace = true
 gmp-mpfr-sys = { workspace = true, default-features = false, optional = true }
 
 # ecRecover
-k256 = { workspace = true, features = ["ecdsa"] }
+k256 = { workspace = true, features = ["ecdsa"], optional = true }
 secp256k1 = { workspace = true, features = [
 	"alloc",
 	"recovery",
@@ -44,10 +44,10 @@ ripemd.workspace = true
 bn = { workspace = true, optional = true }
 
 # Use arkworks implementation for eip1962
-ark-bn254 = { workspace = true, features = ["curve"] }
-ark-ec = { workspace = true }
-ark-ff = { workspace = true, features = ["asm"] }
-ark-serialize = { workspace = true }
+ark-bn254 = { workspace = true, features = ["curve"], optional = true }
+ark-ec = { workspace = true, optional = true }
+ark-ff = { workspace = true, features = ["asm"], optional = true }
+ark-serialize = { workspace = true, optional = true }
 
 # KZG point evaluation precompile
 c-kzg = { workspace = true, optional = true, features = [
@@ -59,7 +59,7 @@ c-kzg = { workspace = true, optional = true, features = [
 blst = { workspace = true, optional = true }
 
 # Use the BLS12-381 implementation of arkworks for EIP2537
-ark-bls12-381 = { workspace = true, features = ["curve"] }
+ark-bls12-381 = { workspace = true, features = ["curve"], optional = true }
 
 # p256verify precompile
 p256 = { workspace = true, features = ["ecdsa"] }
@@ -69,6 +69,9 @@ aws-lc-rs = { workspace = true, optional = true }
 cfg-if.workspace = true
 arrayref = "0.3.6"
 
+[target.'cfg(target_os = "solana")'.dependencies]
+solana-program.workspace = true
+
 [dev-dependencies]
 criterion.workspace = true
 rand = { workspace = true, features = ["std"] }
@@ -77,28 +80,37 @@ rstest.workspace = true
 p256 = { workspace = true, features = ["ecdsa"] }
 
 [features]
-default = ["std", "secp256k1", "blst", "c-kzg", "portable"]
+default = [
+	"std",
+	"secp256k1",
+	"blst",
+	"c-kzg",
+	"portable",
+	"bn-precompile",
+	"bls-precompile",
+]
 
 std = [
 	"primitives/std",
 	"context-interface/std",
-	"k256/std",
+	"k256?/std",
 	"ripemd/std",
 	"sha2/std",
 	"c-kzg?/std",
 	"secp256k1?/std",
-	"ark-bn254/std",
-	"ark-bls12-381/std",
+	"ark-bn254?/std",
+	"ark-bls12-381?/std",
 	"aurora-engine-modexp/std",
-	"ark-ec/std",
-	"ark-ff/std",
-	"ark-serialize/std",
+	"ark-ec?/std",
+	"ark-ff?/std",
+	"ark-serialize?/std",
 	"ark-std/std",
 	"p256/std",
 ]
 hashbrown = ["primitives/hashbrown"]
 asm-keccak = ["primitives/asm-keccak"]
 asm-sha2 = ["sha2/asm"]
+k256 = ["dep:k256"]
 
 
 # Enables the c-kzg point evaluation precompile. Enabled by default as most stable/used implementation.
@@ -117,7 +129,13 @@ secp256k1 = ["dep:secp256k1"]
 blst = ["dep:blst"]
 
 # Enables the substrate implementation of eip1962
-bn = ["dep:bn"]
+bn = ["dep:bn", "bn-precompile"]
+
+# Enables bn254 precompiles with arkworks backend support.
+bn-precompile = ["dep:ark-bn254", "dep:ark-ec", "dep:ark-ff", "dep:ark-serialize"]
+
+# Enables bls12-381 precompiles with arkworks backend support.
+bls-precompile = ["dep:ark-bls12-381", "dep:ark-ec", "dep:ark-ff", "dep:ark-serialize"]
 
 # Use GMP for accelerated modexp precompile. Dynamically links to libgmp at runtime.
 gmp = ["dep:gmp-mpfr-sys"]

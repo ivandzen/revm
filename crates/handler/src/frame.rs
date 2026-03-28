@@ -1,6 +1,7 @@
 use crate::{
-    evm::FrameTr, item_or_result::FrameInitOrResult, precompile_provider::PrecompileProvider,
-    CallFrame, CreateFrame, FrameData, FrameResult, ItemOrResult,
+    evm::FrameTr, item_or_result::FrameInitOrResultOrSuspend,
+    precompile_provider::PrecompileProvider, CallFrame, CreateFrame, FrameData, FrameResult,
+    ItemOrResult, ItemOrResultOrSuspend,
 };
 use context::result::FromStringError;
 use context_interface::{
@@ -91,6 +92,25 @@ impl EthFrame<EthInterpreter> {
     /// Sets the finished state of the frame.
     pub fn set_finished(&mut self, finished: bool) {
         self.is_finished = finished;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::MainContext;
+    use context::Context;
+
+    #[test]
+    fn process_next_action_suspend_maps_to_suspended() {
+        let mut frame = EthFrame::<EthInterpreter>::default();
+        let mut ctx = Context::mainnet();
+
+        let out = frame
+            .process_next_action::<_, ContextError<_>>(&mut ctx, InterpreterAction::new_suspend())
+            .unwrap();
+
+        assert!(matches!(out, ItemOrResultOrSuspend::Suspended));
     }
 }
 
@@ -386,19 +406,20 @@ impl EthFrame<EthInterpreter> {
         &mut self,
         context: &mut CTX,
         next_action: InterpreterAction,
-    ) -> Result<FrameInitOrResult<Self>, ERROR> {
+    ) -> Result<FrameInitOrResultOrSuspend<Self>, ERROR> {
         // Run interpreter
 
         let mut interpreter_result = match next_action {
             InterpreterAction::NewFrame(frame_input) => {
                 let depth = self.depth + 1;
-                return Ok(ItemOrResult::Item(FrameInit {
+                return Ok(ItemOrResultOrSuspend::Item(FrameInit {
                     frame_input,
                     depth,
                     memory: self.interpreter.memory.new_child_context(),
                 }));
             }
             InterpreterAction::Return(result) => result,
+            InterpreterAction::Suspend => return Ok(ItemOrResultOrSuspend::Suspended),
         };
 
         // Handle return from frame
@@ -411,7 +432,7 @@ impl EthFrame<EthInterpreter> {
                 } else {
                     context.journal_mut().checkpoint_revert(self.checkpoint);
                 }
-                ItemOrResult::Result(FrameResult::Call(CallOutcome::new(
+                ItemOrResultOrSuspend::Result(FrameResult::Call(CallOutcome::new(
                     interpreter_result,
                     frame.return_memory_range.clone(),
                 )))
@@ -426,7 +447,7 @@ impl EthFrame<EthInterpreter> {
                     frame.created_address,
                 );
 
-                ItemOrResult::Result(FrameResult::Create(CreateOutcome::new(
+                ItemOrResultOrSuspend::Result(FrameResult::Create(CreateOutcome::new(
                     interpreter_result,
                     Some(frame.created_address),
                 )))

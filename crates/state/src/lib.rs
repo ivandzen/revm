@@ -17,7 +17,7 @@ pub use primitives;
 pub use types::{EvmState, EvmStorage, TransientStorage};
 
 use bitflags::bitflags;
-use primitives::{hardfork::SpecId, HashMap, OnceLock, StorageKey, StorageValue, U256};
+use primitives::{hardfork::SpecId, HashMap, StorageKey, StorageValue, U256};
 use std::boxed::Box;
 
 /// The main account type used inside Revm. It is stored inside Journal and contains all the information about the account.
@@ -50,18 +50,13 @@ pub struct Account {
 impl Account {
     /// Creates new account and mark it as non existing.
     pub fn new_not_existing(transaction_id: usize) -> Self {
-        static DEFAULT: OnceLock<Account> = OnceLock::new();
-        let mut account = DEFAULT
-            .get_or_init(|| Self {
-                info: AccountInfo::default(),
-                storage: HashMap::default(),
-                transaction_id: 0,
-                status: AccountStatus::LoadedAsNotExisting,
-                original_info: Box::new(AccountInfo::default()),
-            })
-            .clone();
-        account.transaction_id = transaction_id;
-        account
+        Self {
+            info: AccountInfo::default(),
+            storage: HashMap::default(),
+            transaction_id,
+            status: AccountStatus::LoadedAsNotExisting,
+            original_info: Box::new(AccountInfo::default()),
+        }
     }
 
     /// Make changes to the caller account.

@@ -1,6 +1,6 @@
 use crate::{
-    instructions::InstructionProvider, item_or_result::FrameInitOrResult, EthFrame, FrameResult,
-    ItemOrResult, PrecompileProvider,
+    instructions::InstructionProvider, item_or_result::FrameInitOrResultOrSuspend, EthFrame,
+    FrameResult, ItemOrResult, ItemOrResultOrSuspend, PrecompileProvider,
 };
 use auto_impl::auto_impl;
 use context::{ContextTr, Database, Evm, FrameStack};
@@ -115,7 +115,7 @@ pub trait EvmTr {
     /// If frame has returned result it would mark it as finished.
     fn frame_run(
         &mut self,
-    ) -> Result<FrameInitOrResult<Self::Frame>, ContextDbError<Self::Context>>;
+    ) -> Result<FrameInitOrResultOrSuspend<Self::Frame>, ContextDbError<Self::Context>>;
 
     /// Returns the result of the frame to the caller. Frame is popped from the frame stack.
     /// Consumes the frame result or returns it if there is more frames to run.
@@ -197,7 +197,9 @@ where
 
     /// Run the frame from the top of the stack. Returns the frame init or result.
     #[inline]
-    fn frame_run(&mut self) -> Result<FrameInitOrResult<Self::Frame>, ContextDbError<CTX>> {
+    fn frame_run(
+        &mut self,
+    ) -> Result<FrameInitOrResultOrSuspend<Self::Frame>, ContextDbError<CTX>> {
         let frame = self.frame_stack.get();
         let context = &mut self.ctx;
         let instructions = &mut self.instruction;
@@ -207,7 +209,7 @@ where
             .run_plain(instructions.instruction_table(), context);
 
         frame.process_next_action(context, action).inspect(|i| {
-            if i.is_result() {
+            if matches!(i, ItemOrResultOrSuspend::Result(_)) {
                 frame.set_finished(true);
             }
         })
@@ -229,5 +231,33 @@ where
             .get()
             .return_result::<_, ContextDbError<Self::Context>>(&mut self.ctx, result)?;
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{MainBuilder, MainContext};
+    use context::Context;
+    use database::BenchmarkDB;
+    use interpreter::{interpreter_types::LoopControl, InterpreterAction};
+    use state::Bytecode;
+
+    #[test]
+    fn evm_frame_run_propagates_suspended_variant() {
+        let ctx = Context::mainnet().with_db(BenchmarkDB::new_bytecode(Bytecode::default()));
+        let mut evm = ctx.build_mainnet();
+
+        let token = evm.frame_stack.start_init().consume();
+        // SAFETY: token was created from this frame stack via start_init.
+        unsafe { evm.frame_stack.end_init(token) };
+        evm.frame_stack
+            .get()
+            .interpreter
+            .bytecode
+            .set_action(InterpreterAction::new_suspend());
+
+        let out = EvmTr::frame_run(&mut evm).unwrap();
+        assert!(matches!(out, ItemOrResultOrSuspend::Suspended));
     }
 }

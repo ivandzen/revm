@@ -2,7 +2,7 @@ use context::{ContextTr, FrameStack, JournalTr};
 use handler::{
     evm::{ContextDbError, FrameInitResult, FrameTr},
     instructions::InstructionProvider,
-    EthFrame, EvmTr, FrameInitOrResult, FrameResult, ItemOrResult,
+    EthFrame, EvmTr, FrameInitOrResultOrSuspend, FrameResult, ItemOrResult, ItemOrResultOrSuspend,
 };
 use interpreter::{
     interpreter::EthInterpreter, interpreter_action::FrameInit, CallOutcome, FrameInput,
@@ -143,7 +143,7 @@ pub trait InspectorEvmTr:
     #[inline]
     fn inspect_frame_run(
         &mut self,
-    ) -> Result<FrameInitOrResult<Self::Frame>, ContextDbError<Self::Context>> {
+    ) -> Result<FrameInitOrResultOrSuspend<Self::Frame>, ContextDbError<Self::Context>> {
         let (ctx, inspector, frame, instructions) = self.ctx_inspector_frame_instructions();
 
         let Some(frame) = frame.eth_frame() else {
@@ -158,7 +158,7 @@ pub trait InspectorEvmTr:
         );
         let mut result = frame.process_next_action(ctx, next_action);
 
-        if let Ok(ItemOrResult::Result(frame_result)) = &mut result {
+        if let Ok(ItemOrResultOrSuspend::Result(frame_result)) = &mut result {
             let (ctx, inspector, frame) = self.ctx_inspector_frame();
             // TODO When all_mut fn is added we can fetch inspector at the top of the function.s
             if let Some(frame) = frame.eth_frame() {

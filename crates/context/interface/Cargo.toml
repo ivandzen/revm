@@ -22,7 +22,7 @@ workspace = true
 primitives.workspace = true
 database-interface.workspace = true
 state.workspace = true
-alloy-eip7702 = { workspace = true, features = ["k256"] }
+alloy-eip7702 = { workspace = true, default-features = false }
 alloy-eip2930.workspace = true
 
 # misc
@@ -51,6 +51,9 @@ serde = [
 	"alloy-eip2930/serde",
 	"database-interface/serde",
 	"either/serde",
+]
+k256 = [
+	"alloy-eip7702/k256"
 ]
 
 # Deprecated, please use `serde` feature instead.

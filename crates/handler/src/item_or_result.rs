@@ -50,3 +50,18 @@ impl<ITEM, RES> ItemOrResult<ITEM, RES> {
 /// Type alias for frame initialization or result.
 pub type FrameInitOrResult<FRAME> =
     ItemOrResult<<FRAME as FrameTr>::FrameInit, <FRAME as FrameTr>::FrameResult>;
+
+/// Represents either frame init, frame result, or a suspension signal.
+#[derive(Clone, Debug)]
+pub enum ItemOrResultOrSuspend<ITEM, RES> {
+    /// Contains an item that needs further processing.
+    Item(ITEM),
+    /// Contains a final result.
+    Result(RES),
+    /// Execution suspended and yielded control.
+    Suspended,
+}
+
+/// Type alias for frame initialization, result, or suspension.
+pub type FrameInitOrResultOrSuspend<FRAME> =
+    ItemOrResultOrSuspend<<FRAME as FrameTr>::FrameInit, <FRAME as FrameTr>::FrameResult>;

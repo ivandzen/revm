@@ -18,8 +18,14 @@ impl AccessListItemTr for AccessListItem {
 }
 
 impl AuthorizationTr for SignedAuthorization {
+    #[cfg(feature = "k256")]
     fn authority(&self) -> Option<Address> {
         self.recover_authority().ok()
+    }
+
+    #[cfg(not(feature = "k256"))]
+    fn authority(&self) -> Option<Address> {
+        None
     }
 
     fn chain_id(&self) -> U256 {

@@ -3,7 +3,7 @@ use core::{
     cmp::Ordering,
     hash::{Hash, Hasher},
 };
-use primitives::{OnceLock, B256, KECCAK_EMPTY, U256};
+use primitives::{B256, KECCAK_EMPTY, U256};
 
 /// Account information that contains balance, nonce, code hash and code
 ///
@@ -34,16 +34,13 @@ pub struct AccountInfo {
 
 impl Default for AccountInfo {
     fn default() -> Self {
-        static DEFAULT: OnceLock<AccountInfo> = OnceLock::new();
-        DEFAULT
-            .get_or_init(|| Self {
-                balance: U256::ZERO,
-                code_hash: KECCAK_EMPTY,
-                account_id: None,
-                nonce: 0,
-                code: Some(Bytecode::default()),
-            })
-            .clone()
+        Self {
+            balance: U256::ZERO,
+            code_hash: KECCAK_EMPTY,
+            account_id: None,
+            nonce: 0,
+            code: Some(Bytecode::default()),
+        }
     }
 }
 

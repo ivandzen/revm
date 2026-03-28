@@ -4,6 +4,7 @@ use context_interface::{Block, Database, JournalTr, Transaction};
 use database_interface::EmptyDB;
 use interpreter::interpreter::EthInterpreter;
 use primitives::hardfork::SpecId;
+use solana_program::msg;
 
 /// Type alias for a mainnet EVM instance with standard Ethereum components.
 pub type MainnetEvm<CTX, INSP = ()> =
@@ -37,12 +38,18 @@ where
 
     fn build_mainnet(self) -> MainnetEvm<Self::Context> {
         let spec = self.cfg.spec().into();
+
+        #[cfg(target_os = "solana")]
+        let frame_stack = FrameStack::new();
+        #[cfg(not(target_os = "solana"))]
+        let frame_stack = FrameStack::new_prealloc(8);
+        
         Evm {
             ctx: self,
             inspector: (),
             instruction: EthInstructions::new_mainnet_with_spec(spec),
             precompiles: EthPrecompiles::new(spec),
-            frame_stack: FrameStack::new_prealloc(8),
+            frame_stack,
         }
     }
 
@@ -51,12 +58,16 @@ where
         inspector: INSP,
     ) -> MainnetEvm<Self::Context, INSP> {
         let spec = self.cfg.spec().into();
+        #[cfg(target_os = "solana")]
+        let frame_stack = FrameStack::new();
+        #[cfg(not(target_os = "solana"))]
+        let frame_stack = FrameStack::new_prealloc(8);
         Evm {
             ctx: self,
             inspector,
             instruction: EthInstructions::new_mainnet_with_spec(spec),
             precompiles: EthPrecompiles::new(spec),
-            frame_stack: FrameStack::new_prealloc(8),
+            frame_stack,
         }
     }
 }

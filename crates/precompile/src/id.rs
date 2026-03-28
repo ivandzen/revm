@@ -105,6 +105,11 @@ impl PrecompileId {
                 }
             }
             Self::Bn254Add => {
+                #[cfg(not(feature = "bn-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bn-precompile")]
                 // BN254 add - gas cost changes in Istanbul
                 if spec < ISTANBUL {
                     crate::bn254::add::BYZANTIUM
@@ -113,6 +118,11 @@ impl PrecompileId {
                 }
             }
             Self::Bn254Mul => {
+                #[cfg(not(feature = "bn-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bn-precompile")]
                 // BN254 mul - gas cost changes in Istanbul
                 if spec < ISTANBUL {
                     crate::bn254::mul::BYZANTIUM
@@ -121,6 +131,11 @@ impl PrecompileId {
                 }
             }
             Self::Bn254Pairing => {
+                #[cfg(not(feature = "bn-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bn-precompile")]
                 // BN254 pairing - gas cost changes in Istanbul
                 if spec < ISTANBUL {
                     crate::bn254::pair::BYZANTIUM
@@ -130,13 +145,62 @@ impl PrecompileId {
             }
             Self::Blake2F => crate::blake2::FUN,
             Self::KzgPointEvaluation => crate::kzg_point_evaluation::POINT_EVALUATION,
-            Self::Bls12G1Add => crate::bls12_381::g1_add::PRECOMPILE,
-            Self::Bls12G1Msm => crate::bls12_381::g1_msm::PRECOMPILE,
-            Self::Bls12G2Add => crate::bls12_381::g2_add::PRECOMPILE,
-            Self::Bls12G2Msm => crate::bls12_381::g2_msm::PRECOMPILE,
-            Self::Bls12Pairing => crate::bls12_381::pairing::PRECOMPILE,
-            Self::Bls12MapFpToGp1 => crate::bls12_381::map_fp_to_g1::PRECOMPILE,
-            Self::Bls12MapFp2ToGp2 => crate::bls12_381::map_fp2_to_g2::PRECOMPILE,
+            Self::Bls12G1Add => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::g1_add::PRECOMPILE
+            }
+            Self::Bls12G1Msm => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::g1_msm::PRECOMPILE
+            }
+            Self::Bls12G2Add => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::g2_add::PRECOMPILE
+            }
+            Self::Bls12G2Msm => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::g2_msm::PRECOMPILE
+            }
+            Self::Bls12Pairing => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::pairing::PRECOMPILE
+            }
+            Self::Bls12MapFpToGp1 => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::map_fp_to_g1::PRECOMPILE
+            }
+            Self::Bls12MapFp2ToGp2 => {
+                #[cfg(not(feature = "bls-precompile"))]
+                {
+                    return None;
+                }
+                #[cfg(feature = "bls-precompile")]
+                crate::bls12_381::map_fp2_to_g2::PRECOMPILE
+            }
             Self::P256Verify => {
                 // P256 verify - gas cost changes in Osaka
                 if spec < OSAKA {

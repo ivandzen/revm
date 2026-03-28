@@ -17,7 +17,7 @@ use std::{
     io::stderr,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     },
     time::{Duration, Instant},
@@ -300,6 +300,7 @@ pub fn execute_test_suite(
         kind: e.into(),
     })?;
 
+    let mut failed_once = false;
     for (name, unit) in suite.0 {
         // Prepare initial state
         let cache_state = unit.state();
@@ -364,14 +365,14 @@ pub fn execute_test_suite(
 
                 if let Err(e) = result {
                     // Handle error with debug trace if needed
-                    static FAILED: AtomicBool = AtomicBool::new(false);
-                    if print_json_outcome || FAILED.swap(true, Ordering::SeqCst) {
+                    if print_json_outcome || failed_once {
                         return Err(TestError {
                             name,
                             path,
                             kind: e,
                         });
                     }
+                    failed_once = true;
 
                     // Re-run with trace for debugging
                     debug_failed_test(DebugContext {

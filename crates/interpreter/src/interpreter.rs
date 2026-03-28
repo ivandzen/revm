@@ -296,6 +296,7 @@ impl<IW: InterpreterTypes> Interpreter<IW> {
 
         let instruction = unsafe { instruction_table.get_unchecked(opcode as usize) };
 
+        #[cfg(not(target_os = "solana"))]
         if self.gas.record_cost_unsafe(instruction.static_gas()) {
             return self.halt_oog();
         }

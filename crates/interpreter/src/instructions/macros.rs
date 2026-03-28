@@ -29,6 +29,7 @@ macro_rules! check {
 }
 
 /// Records a `gas` cost and fails the instruction if it would exceed the available gas.
+#[cfg(not(target_os = "solana"))]
 #[macro_export]
 #[collapse_debuginfo(yes)]
 macro_rules! gas {
@@ -42,6 +43,14 @@ macro_rules! gas {
         }
     };
 }
+
+#[cfg(target_os = "solana")]
+#[macro_export]
+macro_rules! metered_gas {
+    ($interp:expr, $gas:expr) => {};
+    ($interp:expr, $gas:expr, $ret:expr) => {};
+}
+
 
 /// Loads account and account berlin gas cost accounting.
 #[macro_export]

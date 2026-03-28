@@ -29,12 +29,16 @@ impl<CTX, I, P, F: Default> Evm<CTX, (), I, P, F> {
     ///
     /// Inspector will be set to `()`.
     pub fn new(ctx: CTX, instruction: I, precompiles: P) -> Self {
+        #[cfg(target_os = "solana")]
+        let frame_stack = FrameStack::new();
+        #[cfg(not(target_os = "solana"))]
+        let frame_stack = FrameStack::new_prealloc(8);
         Evm {
             ctx,
             inspector: (),
             instruction,
             precompiles,
-            frame_stack: FrameStack::new_prealloc(8),
+            frame_stack,
         }
     }
 }
@@ -42,12 +46,16 @@ impl<CTX, I, P, F: Default> Evm<CTX, (), I, P, F> {
 impl<CTX, I, INSP, P, F: Default> Evm<CTX, INSP, I, P, F> {
     /// Create a new EVM instance with a given context, inspector, instruction set, and precompile provider.
     pub fn new_with_inspector(ctx: CTX, inspector: INSP, instruction: I, precompiles: P) -> Self {
+        #[cfg(target_os = "solana")]
+        let frame_stack = FrameStack::new();
+        #[cfg(not(target_os = "solana"))]
+        let frame_stack = FrameStack::new_prealloc(8);
         Evm {
             ctx,
             inspector,
             instruction,
             precompiles,
-            frame_stack: FrameStack::new_prealloc(8),
+            frame_stack,
         }
     }
 }

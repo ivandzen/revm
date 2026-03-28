@@ -9,7 +9,7 @@ use revm::{
         self, bn254, secp256r1, Precompile, PrecompileError, PrecompileId, PrecompileResult,
         Precompiles,
     },
-    primitives::{hardfork::SpecId, Address, OnceLock},
+    primitives::{hardfork::SpecId, Address},
 };
 use std::{boxed::Box, string::String};
 
@@ -48,76 +48,64 @@ impl OpPrecompiles {
 
     /// Precompiles getter.
     #[inline]
-    pub fn precompiles(&self) -> &'static Precompiles {
-        self.inner.precompiles
+    pub fn precompiles(&self) -> &Precompiles {
+        &self.inner.precompiles
     }
 }
 
 /// Returns precompiles for Fjord spec.
-pub fn fjord() -> &'static Precompiles {
-    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let mut precompiles = Precompiles::cancun().clone();
-        // RIP-7212: secp256r1 P256verify
-        precompiles.extend([secp256r1::P256VERIFY]);
-        precompiles
-    })
+pub fn fjord() -> Precompiles {
+    let mut precompiles = Precompiles::cancun();
+    // RIP-7212: secp256r1 P256verify
+    precompiles.extend([secp256r1::P256VERIFY]);
+    precompiles
 }
 
 /// Returns precompiles for Granite spec.
-pub fn granite() -> &'static Precompiles {
-    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let mut precompiles = fjord().clone();
-        // Restrict bn254Pairing input size
-        precompiles.extend([bn254_pair::GRANITE]);
-        precompiles
-    })
+pub fn granite() -> Precompiles {
+    let mut precompiles = fjord();
+    // Restrict bn254Pairing input size
+    precompiles.extend([bn254_pair::GRANITE]);
+    precompiles
 }
 
 /// Returns precompiles for isthmus spec.
-pub fn isthmus() -> &'static Precompiles {
-    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let mut precompiles = granite().clone();
-        // Prague bls12 precompiles
-        precompiles.extend(precompile::bls12_381::precompiles());
-        // Isthmus bls12 precompile modifications
-        precompiles.extend([
-            bls12_381::ISTHMUS_G1_MSM,
-            bls12_381::ISTHMUS_G2_MSM,
-            bls12_381::ISTHMUS_PAIRING,
-        ]);
-        precompiles
-    })
+pub fn isthmus() -> Precompiles {
+    let mut precompiles = granite();
+    // Prague bls12 precompiles
+    precompiles.extend(precompile::bls12_381::precompiles());
+    // Isthmus bls12 precompile modifications
+    precompiles.extend([
+        bls12_381::ISTHMUS_G1_MSM,
+        bls12_381::ISTHMUS_G2_MSM,
+        bls12_381::ISTHMUS_PAIRING,
+    ]);
+    precompiles
 }
 
 /// Returns precompiles for jovian spec.
-pub fn jovian() -> &'static Precompiles {
-    static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-    INSTANCE.get_or_init(|| {
-        let mut precompiles = isthmus().clone();
+pub fn jovian() -> Precompiles {
+    let mut precompiles = isthmus();
 
-        let mut to_remove = Precompiles::default();
-        to_remove.extend([
-            bn254::pair::ISTANBUL,
-            bls12_381::ISTHMUS_G1_MSM,
-            bls12_381::ISTHMUS_G2_MSM,
-            bls12_381::ISTHMUS_PAIRING,
-        ]);
+    let mut to_remove = Precompiles::default();
+    to_remove.extend([
+        bn254::pair::ISTANBUL,
+        bls12_381::ISTHMUS_G1_MSM,
+        bls12_381::ISTHMUS_G2_MSM,
+        bls12_381::ISTHMUS_PAIRING,
+    ]);
 
-        // Replace the 4 variable-input precompiles with Jovian versions (reduced limits)
-        precompiles.difference(&to_remove);
+    // Replace the 4 variable-input precompiles with Jovian versions (reduced limits)
+    precompiles.difference(&to_remove);
 
-        precompiles.extend([
-            bn254_pair::JOVIAN,
-            bls12_381::JOVIAN_G1_MSM,
-            bls12_381::JOVIAN_G2_MSM,
-            bls12_381::JOVIAN_PAIRING,
-        ]);
+    precompiles.extend([
+        bn254_pair::JOVIAN,
+        bls12_381::JOVIAN_G1_MSM,
+        bls12_381::JOVIAN_G2_MSM,
+        bls12_381::JOVIAN_PAIRING,
+    ]);
 
-        precompiles
-    })
+    precompiles
 }
 
 impl<CTX> PrecompileProvider<CTX> for OpPrecompiles

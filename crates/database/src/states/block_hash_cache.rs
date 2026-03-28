@@ -24,8 +24,17 @@ impl BlockHashCache {
     /// Creates a new empty BlockHashCache of length [BLOCK_HASH_HISTORY].
     #[inline]
     pub fn new() -> Self {
+        let mut hashes = Box::<[(Option<u64>, B256); BLOCK_HASH_HISTORY_USIZE]>::new_uninit();
+
+        let ptr = hashes.as_mut_ptr() as *mut (Option<u64>, B256);
+        for i in 0..BLOCK_HASH_HISTORY_USIZE {
+            // SAFETY: every element is written exactly once.
+            unsafe { ptr.add(i).write((None, B256::ZERO)); }
+        }
+
         Self {
-            hashes: Box::new([(None, B256::ZERO); BLOCK_HASH_HISTORY_USIZE]),
+            // SAFETY: all elements were initialized above.
+            hashes: unsafe { hashes.assume_init() },
         }
     }
 

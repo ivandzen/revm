@@ -125,6 +125,7 @@ indicatif = "0.18"
 rstest = "0.26.0"
 thiserror = { version = "2.0", default-features = false }
 walkdir = "2.5"
+solana-program = { version = "=3.0.0", features = ["borsh"], default-features = false }
 
 [workspace.package]
 license = "MIT"

@@ -285,6 +285,7 @@ impl<ExtDB> DatabaseCommit for CacheDB<ExtDB> {
             if !account.is_touched() {
                 continue;
             }
+
             if account.is_selfdestructed() {
                 let db_account = self.cache.accounts.entry(address).or_default();
                 db_account.storage.clear();

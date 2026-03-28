@@ -7,6 +7,7 @@ use primitives::{hardfork::SpecId, Address, Bytes};
 use std::{
     boxed::Box,
     string::{String, ToString},
+    vec::Vec,
 };
 
 /// Provider for precompiled contracts in the EVM.
@@ -38,7 +39,7 @@ pub trait PrecompileProvider<CTX: ContextTr> {
 #[derive(Debug)]
 pub struct EthPrecompiles {
     /// Contains precompiles for the current spec.
-    pub precompiles: &'static Precompiles,
+    pub precompiles: Precompiles,
     /// Current spec. None means that spec was not set yet.
     pub spec: SpecId,
 }
@@ -54,7 +55,8 @@ impl EthPrecompiles {
 
     /// Returns addresses of the precompiles.
     pub fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
-        Box::new(self.precompiles.addresses().cloned())
+        let addresses = self.precompiles.addresses().cloned().collect::<Vec<_>>();
+        Box::new(addresses.into_iter())
     }
 
     /// Returns whether the address is a precompile.
@@ -66,7 +68,7 @@ impl EthPrecompiles {
 impl Clone for EthPrecompiles {
     fn clone(&self) -> Self {
         Self {
-            precompiles: self.precompiles,
+            precompiles: self.precompiles.clone(),
             spec: self.spec,
         }
     }

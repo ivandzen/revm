@@ -9,9 +9,11 @@
 extern crate alloc as std;
 
 pub mod blake2;
+#[cfg(feature = "bls-precompile")]
 pub mod bls12_381;
 pub mod bls12_381_const;
 pub mod bls12_381_utils;
+#[cfg(feature = "bn-precompile")]
 pub mod bn254;
 pub mod hash;
 mod id;
@@ -30,7 +32,7 @@ pub use interface::*;
 
 // silence arkworks lint as bn impl will be used as default if both are enabled.
 cfg_if::cfg_if! {
-    if #[cfg(feature = "bn")]{
+    if #[cfg(all(feature = "bn", feature = "bn-precompile"))]{
         use ark_bn254 as _;
         use ark_ff as _;
         use ark_ec as _;
@@ -42,7 +44,7 @@ use arrayref as _;
 
 // silence arkworks-bls12-381 lint as blst will be used as default if both are enabled.
 cfg_if::cfg_if! {
-    if #[cfg(feature = "blst")]{
+    if #[cfg(all(feature = "blst", feature = "bls-precompile"))]{
         use ark_bls12_381 as _;
         use ark_ff as _;
         use ark_ec as _;
@@ -60,8 +62,7 @@ use p256 as _;
 
 use core::hash::Hash;
 use primitives::{
-    hardfork::SpecId, short_address, Address, AddressMap, AddressSet, HashMap, OnceLock,
-    SHORT_ADDRESS_CAP,
+    hardfork::SpecId, short_address, Address, AddressMap, AddressSet, HashMap, SHORT_ADDRESS_CAP,
 };
 use std::vec::Vec;
 
@@ -103,7 +104,7 @@ impl Default for Precompiles {
 
 impl Precompiles {
     /// Returns the precompiles for the given spec.
-    pub fn new(spec: PrecompileSpecId) -> &'static Self {
+    pub fn new(spec: PrecompileSpecId) -> Self {
         match spec {
             PrecompileSpecId::HOMESTEAD => Self::homestead(),
             PrecompileSpecId::BYZANTIUM => Self::byzantium(),
@@ -116,18 +117,15 @@ impl Precompiles {
     }
 
     /// Returns precompiles for Homestead spec.
-    pub fn homestead() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Precompiles::default();
-            precompiles.extend([
-                secp256k1::ECRECOVER,
-                hash::SHA256,
-                hash::RIPEMD160,
-                identity::FUN,
-            ]);
-            precompiles
-        })
+    pub fn homestead() -> Self {
+        let mut precompiles = Precompiles::default();
+        precompiles.extend([
+            secp256k1::ECRECOVER,
+            hash::SHA256,
+            hash::RIPEMD160,
+            identity::FUN,
+        ]);
+        precompiles
     }
 
     /// Returns inner HashMap of precompiles.
@@ -136,91 +134,76 @@ impl Precompiles {
     }
 
     /// Returns precompiles for Byzantium spec.
-    pub fn byzantium() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Self::homestead().clone();
-            precompiles.extend([
-                // EIP-198: Big integer modular exponentiation.
-                modexp::BYZANTIUM,
-                // EIP-196: Precompiled contracts for addition and scalar multiplication on the elliptic curve alt_bn128.
-                // EIP-197: Precompiled contracts for optimal ate pairing check on the elliptic curve alt_bn128.
-                bn254::add::BYZANTIUM,
-                bn254::mul::BYZANTIUM,
-                bn254::pair::BYZANTIUM,
-            ]);
-            precompiles
-        })
+    pub fn byzantium() -> Self {
+        let mut precompiles = Self::homestead();
+        precompiles.extend([modexp::BYZANTIUM]);
+        #[cfg(feature = "bn-precompile")]
+        precompiles.extend([
+            // EIP-196: Precompiled contracts for addition and scalar multiplication on the elliptic curve alt_bn128.
+            // EIP-197: Precompiled contracts for optimal ate pairing check on the elliptic curve alt_bn128.
+            bn254::add::BYZANTIUM,
+            bn254::mul::BYZANTIUM,
+            bn254::pair::BYZANTIUM,
+        ]);
+        precompiles
     }
 
     /// Returns precompiles for Istanbul spec.
-    pub fn istanbul() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Self::byzantium().clone();
-            precompiles.extend([
-                // EIP-1108: Reduce alt_bn128 precompile gas costs.
-                bn254::add::ISTANBUL,
-                bn254::mul::ISTANBUL,
-                bn254::pair::ISTANBUL,
-                // EIP-152: Add BLAKE2 compression function `F` precompile.
-                blake2::FUN,
-            ]);
-            precompiles
-        })
+    pub fn istanbul() -> Self {
+        let mut precompiles = Self::byzantium();
+        #[cfg(feature = "bn-precompile")]
+        precompiles.extend([
+            // EIP-1108: Reduce alt_bn128 precompile gas costs.
+            bn254::add::ISTANBUL,
+            bn254::mul::ISTANBUL,
+            bn254::pair::ISTANBUL,
+        ]);
+        // EIP-152: Add BLAKE2 compression function `F` precompile.
+        precompiles.extend([blake2::FUN]);
+        precompiles
     }
 
     /// Returns precompiles for Berlin spec.
-    pub fn berlin() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Self::istanbul().clone();
-            precompiles.extend([
-                // EIP-2565: ModExp Gas Cost.
-                modexp::BERLIN,
-            ]);
-            precompiles
-        })
+    pub fn berlin() -> Self {
+        let mut precompiles = Self::istanbul();
+        precompiles.extend([
+            // EIP-2565: ModExp Gas Cost.
+            modexp::BERLIN,
+        ]);
+        precompiles
     }
 
     /// Returns precompiles for Cancun spec.
     ///
     /// If the `c-kzg` feature is not enabled KZG Point Evaluation precompile will not be included,
     /// effectively making this the same as Berlin.
-    pub fn cancun() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Self::berlin().clone();
-            precompiles.extend([
-                // EIP-4844: Shard Blob Transactions
-                kzg_point_evaluation::POINT_EVALUATION,
-            ]);
-            precompiles
-        })
+    pub fn cancun() -> Self {
+        let mut precompiles = Self::berlin();
+        precompiles.extend([
+            // EIP-4844: Shard Blob Transactions
+            kzg_point_evaluation::POINT_EVALUATION,
+        ]);
+        precompiles
     }
 
     /// Returns precompiles for Prague spec.
-    pub fn prague() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Self::cancun().clone();
-            precompiles.extend(bls12_381::precompiles());
-            precompiles
-        })
+    pub fn prague() -> Self {
+        #[allow(unused_mut)]
+        let mut precompiles = Self::cancun();
+        #[cfg(feature = "bls-precompile")]
+        precompiles.extend(bls12_381::precompiles());
+        precompiles
     }
 
     /// Returns precompiles for Osaka spec.
-    pub fn osaka() -> &'static Self {
-        static INSTANCE: OnceLock<Precompiles> = OnceLock::new();
-        INSTANCE.get_or_init(|| {
-            let mut precompiles = Self::prague().clone();
-            precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA]);
-            precompiles
-        })
+    pub fn osaka() -> Self {
+        let mut precompiles = Self::prague();
+        precompiles.extend([modexp::OSAKA, secp256r1::P256VERIFY_OSAKA]);
+        precompiles
     }
 
     /// Returns the precompiles for the latest spec.
-    pub fn latest() -> &'static Self {
+    pub fn latest() -> Self {
         Self::osaka()
     }
 
@@ -505,13 +488,13 @@ mod test {
 
     #[test]
     fn test_difference_precompile_sets() {
-        let difference = Precompiles::istanbul().difference(Precompiles::berlin());
+        let difference = Precompiles::istanbul().difference(&Precompiles::berlin());
         assert!(difference.is_empty());
     }
 
     #[test]
     fn test_intersection_precompile_sets() {
-        let intersection = Precompiles::homestead().intersection(Precompiles::byzantium());
+        let intersection = Precompiles::homestead().intersection(&Precompiles::byzantium());
 
         assert_eq!(intersection.len(), 4)
     }

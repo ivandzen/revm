@@ -34,7 +34,15 @@ serde = { workspace = true, features = ["derive"] }
 alloy-primitives.workspace = true
 
 [features]
-default = ["std", "c-kzg", "secp256k1", "portable", "blst"]
+default = [
+	"std",
+	"c-kzg",
+	"secp256k1",
+	"portable",
+	"blst",
+	"bn-precompile",
+	"bls-precompile",
+]
 std = [
 	"serde?/std",
 	"revm/std",
@@ -65,6 +73,9 @@ optional_fee_charge = ["revm/optional_fee_charge"]
 
 # See comments in `revm-precompile`
 secp256k1 = ["revm/secp256k1"]
+k256 = ["revm/k256"]
 c-kzg = ["revm/c-kzg"]
 blst = ["revm/blst"]
 bn = ["revm/bn"]
+bn-precompile = ["revm/bn-precompile"]
+bls-precompile = ["revm/bls-precompile"]

@@ -21,6 +21,7 @@ workspace = true
 # alloy
 alloy-primitives = { workspace = true, features = [
     "map-indexmap",
+    "map-fxhash",
     "rlp",
     "map",
 ] }

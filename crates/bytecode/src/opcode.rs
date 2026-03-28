@@ -348,7 +348,7 @@ macro_rules! opcodes {
         )*}
 
         /// Maps each opcode to its info.
-        pub static OPCODE_INFO: [Option<OpCodeInfo>; 256] = {
+        pub const OPCODE_INFO: [Option<OpCodeInfo>; 256] = {
             let mut map = [None; 256];
             let mut prev: u8 = 0;
             $(
@@ -368,7 +368,7 @@ macro_rules! opcodes {
 
         /// Maps each name to its opcode.
         #[cfg(feature = "parse")]
-        pub(crate) static NAME_TO_OPCODE: phf::Map<&'static str, OpCode> = stringify_with_cb! { phf_map_cb; $($name)* };
+        pub(crate) const NAME_TO_OPCODE: phf::Map<&'static str, OpCode> = stringify_with_cb! { phf_map_cb; $($name)* };
     };
 }
 
