@@ -46,7 +46,7 @@ macro_rules! gas {
 
 #[cfg(target_os = "solana")]
 #[macro_export]
-macro_rules! metered_gas {
+macro_rules! gas {
     ($interp:expr, $gas:expr) => {};
     ($interp:expr, $gas:expr, $ret:expr) => {};
 }
