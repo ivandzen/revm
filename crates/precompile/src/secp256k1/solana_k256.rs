@@ -1,9 +1,10 @@
-use primitives::alloy_primitives::B512;
-use primitives::B256;
 use solana_program::{
     keccak,
     secp256k1_recover::{secp256k1_recover, Secp256k1RecoverError},
 };
+use primitives::alloy_primitives::B512;
+use primitives::B256;
+
 
 /// Recover the public key from a signature and a message.
 ///

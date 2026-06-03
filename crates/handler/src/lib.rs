@@ -46,9 +46,7 @@ pub use evm::{EvmTr, FrameTr};
 pub use frame::{return_create, ContextTrDbError, EthFrame};
 pub use frame_data::{CallFrame, CreateFrame, FrameData, FrameResult};
 pub use handler::{EvmTrError, Handler};
-pub use item_or_result::{
-    FrameInitOrResult, FrameInitOrResultOrSuspend, ItemOrResult, ItemOrResultOrSuspend,
-};
+pub use item_or_result::{FrameInitOrResult, ItemOrResult};
 pub use mainnet_builder::{MainBuilder, MainContext, MainnetContext, MainnetEvm};
 pub use mainnet_handler::MainnetHandler;
 pub use precompile_provider::{EthPrecompiles, PrecompileProvider};

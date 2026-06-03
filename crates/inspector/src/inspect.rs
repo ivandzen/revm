@@ -1,4 +1,3 @@
-use crate::{ControlledExecutionResult, ExecutionControl};
 use context::result::ExecResultAndState;
 use handler::{system_call::SYSTEM_ADDRESS, ExecuteCommitEvm, ExecuteEvm, SystemCallEvm};
 use primitives::{Address, Bytes};
@@ -195,25 +194,5 @@ pub trait InspectSystemCallEvm: InspectEvm + SystemCallEvm {
         )?;
         let state = self.finalize();
         Ok(ExecResultAndState::new(output, state))
-    }
-}
-
-/// InspectControlledEvm exposes a controlled execution shape for stepping and suspension.
-///
-/// Default implementation degrades to full execution and always returns `Completed`.
-/// EVMs that support true mid-execution suspension should override
-/// [`InspectControlledEvm::inspect_one_tx_controlled`].
-pub trait InspectControlledEvm: InspectEvm {
-    /// Snapshot payload returned when execution is suspended.
-    type Snapshot;
-
-    /// Inspect a transaction under external execution controls.
-    fn inspect_one_tx_controlled(
-        &mut self,
-        tx: Self::Tx,
-        _control: &ExecutionControl,
-    ) -> Result<ControlledExecutionResult<Self::ExecutionResult, Self::Snapshot>, Self::Error> {
-        let result = self.inspect_one_tx(tx)?;
-        Ok(ControlledExecutionResult::Completed(result))
     }
 }

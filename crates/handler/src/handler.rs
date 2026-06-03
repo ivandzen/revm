@@ -2,7 +2,7 @@ use crate::{
     evm::FrameTr,
     execution, post_execution,
     pre_execution::{self, apply_eip7702_auth_list},
-    validation, EvmTr, FrameResult, ItemOrResult, ItemOrResultOrSuspend,
+    validation, EvmTr, FrameResult, ItemOrResult,
 };
 use context::{
     result::{ExecutionResult, FromStringError},
@@ -378,15 +378,6 @@ pub trait Handler {
 
     /* FRAMES */
 
-    /// Returns whether a frame-loop suspension should be treated as fatal.
-    ///
-    /// Default behavior keeps legacy APIs strict: suspension is unsupported unless
-    /// a caller overrides handling by implementing custom run methods.
-    #[inline]
-    fn on_execution_suspended(&mut self, _evm: &mut Self::Evm) -> Result<FrameResult, Self::Error> {
-        Err(ContextError::Custom("execution suspended".into()).into())
-    }
-
     /// Executes the main frame processing loop.
     ///
     /// This loop manages the frame stack, processing each frame until execution completes.
@@ -410,7 +401,7 @@ pub trait Handler {
             let call_or_result = evm.frame_run()?;
 
             let result = match call_or_result {
-                ItemOrResultOrSuspend::Item(init) => {
+                ItemOrResult::Item(init) => {
                     match evm.frame_init(init)? {
                         ItemOrResult::Item(_) => {
                             continue;
@@ -419,8 +410,7 @@ pub trait Handler {
                         ItemOrResult::Result(result) => result,
                     }
                 }
-                ItemOrResultOrSuspend::Result(result) => result,
-                ItemOrResultOrSuspend::Suspended => return self.on_execution_suspended(evm),
+                ItemOrResult::Result(result) => result,
             };
 
             if let Some(result) = evm.frame_return_result(result)? {
@@ -515,131 +505,5 @@ pub trait Handler {
         evm.ctx().journal_mut().discard_tx();
         evm.frame_stack().clear();
         Err(error)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        evm::{ContextDbError, FrameInitResult},
-        frame::EthFrame,
-        instructions::EthInstructions,
-        precompile_provider::EthPrecompiles,
-        MainContext, MainnetContext,
-    };
-    use context::{Context, FrameStack};
-    use context_interface::result::{EVMError, HaltReason};
-    use database::BenchmarkDB;
-    use interpreter::interpreter::EthInterpreter;
-    use state::Bytecode;
-
-    struct MockEvm {
-        ctx: MainnetContext<BenchmarkDB>,
-        instruction: EthInstructions<EthInterpreter, MainnetContext<BenchmarkDB>>,
-        precompiles: EthPrecompiles,
-        frames: FrameStack<EthFrame<EthInterpreter>>,
-        frame: EthFrame<EthInterpreter>,
-        init_done: bool,
-    }
-
-    impl MockEvm {
-        fn new() -> Self {
-            let ctx = Context::mainnet().with_db(BenchmarkDB::new_bytecode(Bytecode::default()));
-            let spec = (*ctx.cfg.spec()).into();
-            Self {
-                ctx,
-                instruction: EthInstructions::new_mainnet_with_spec(spec),
-                precompiles: EthPrecompiles::new(spec),
-                frames: FrameStack::new(),
-                frame: EthFrame::default(),
-                init_done: false,
-            }
-        }
-    }
-
-    impl EvmTr for MockEvm {
-        type Context = MainnetContext<BenchmarkDB>;
-        type Instructions = EthInstructions<EthInterpreter, MainnetContext<BenchmarkDB>>;
-        type Precompiles = EthPrecompiles;
-        type Frame = EthFrame<EthInterpreter>;
-
-        fn all(
-            &self,
-        ) -> (
-            &Self::Context,
-            &Self::Instructions,
-            &Self::Precompiles,
-            &FrameStack<Self::Frame>,
-        ) {
-            (&self.ctx, &self.instruction, &self.precompiles, &self.frames)
-        }
-
-        fn all_mut(
-            &mut self,
-        ) -> (
-            &mut Self::Context,
-            &mut Self::Instructions,
-            &mut Self::Precompiles,
-            &mut FrameStack<Self::Frame>,
-        ) {
-            (
-                &mut self.ctx,
-                &mut self.instruction,
-                &mut self.precompiles,
-                &mut self.frames,
-            )
-        }
-
-        fn frame_init(
-            &mut self,
-            _frame_input: <Self::Frame as FrameTr>::FrameInit,
-        ) -> Result<FrameInitResult<'_, Self::Frame>, ContextDbError<Self::Context>> {
-            self.init_done = true;
-            Ok(ItemOrResult::Item(&mut self.frame))
-        }
-
-        fn frame_run(
-            &mut self,
-        ) -> Result<
-            crate::item_or_result::FrameInitOrResultOrSuspend<Self::Frame>,
-            ContextDbError<Self::Context>,
-        > {
-            Ok(ItemOrResultOrSuspend::Suspended)
-        }
-
-        fn frame_return_result(
-            &mut self,
-            _result: <Self::Frame as FrameTr>::FrameResult,
-        ) -> Result<Option<<Self::Frame as FrameTr>::FrameResult>, ContextDbError<Self::Context>>
-        {
-            unreachable!("frame_return_result is not called on suspended path");
-        }
-    }
-
-    #[derive(Default)]
-    struct TestHandler;
-
-    impl Handler for TestHandler {
-        type Evm = MockEvm;
-        type Error = EVMError<<BenchmarkDB as context_interface::Database>::Error>;
-        type HaltReason = HaltReason;
-    }
-
-    #[test]
-    fn handler_run_exec_loop_uses_suspend_hook() {
-        let mut handler = TestHandler;
-        let mut evm = MockEvm::new();
-        let first = interpreter::interpreter_action::FrameInit {
-            depth: 0,
-            memory: interpreter::SharedMemory::new(),
-            frame_input: interpreter::FrameInput::Empty,
-        };
-
-        let err = handler.run_exec_loop(&mut evm, first).unwrap_err();
-        match err {
-            EVMError::Custom(msg) => assert_eq!(msg, "execution suspended"),
-            other => panic!("unexpected error variant: {other:?}"),
-        }
     }
 }

@@ -41,9 +41,7 @@ pub use handler::{
     ExecuteCommitEvm, ExecuteEvm, MainBuilder, MainContext, MainnetEvm, SystemCallCommitEvm,
     SystemCallEvm,
 };
-pub use inspector::{
-    InspectCommitEvm, InspectControlledEvm, InspectEvm, InspectSystemCallEvm, Inspector,
-};
+pub use inspector::{InspectCommitEvm, InspectEvm, InspectSystemCallEvm, Inspector};
 pub use precompile::install_crypto;
 
 #[cfg(all(target_os = "solana", feature = "std"))]
