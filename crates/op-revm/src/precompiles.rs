@@ -443,39 +443,39 @@ mod tests {
     #[test]
     fn test_cancun_precompiles_in_fjord() {
         // additional to cancun, fjord has p256verify
-        assert_eq!(fjord().difference(Precompiles::cancun()).len(), 1)
+        assert_eq!(fjord().difference(&Precompiles::cancun()).len(), 1)
     }
 
     #[test]
     fn test_cancun_precompiles_in_granite() {
         // granite has p256verify (fjord)
         // granite has modification of cancun's bn254 pair (doesn't count as new precompile)
-        assert_eq!(granite().difference(Precompiles::cancun()).len(), 1)
+        assert_eq!(granite().difference(&Precompiles::cancun()).len(), 1)
     }
 
     #[test]
     fn test_prague_precompiles_in_isthmus() {
-        let new_prague_precompiles = Precompiles::prague().difference(Precompiles::cancun());
+        let new_prague_precompiles = Precompiles::prague().difference(&Precompiles::cancun());
 
         // isthmus contains all precompiles that were new in prague, without modifications
-        assert!(new_prague_precompiles.difference(isthmus()).is_empty())
+        assert!(new_prague_precompiles.difference(&isthmus()).is_empty())
     }
 
     #[test]
     fn test_prague_precompiles_in_jovian() {
-        let new_prague_precompiles = Precompiles::prague().difference(Precompiles::cancun());
+        let new_prague_precompiles = Precompiles::prague().difference(&Precompiles::cancun());
 
         // jovian contains all precompiles that were new in prague, without modifications
-        assert!(new_prague_precompiles.difference(jovian()).is_empty())
+        assert!(new_prague_precompiles.difference(&jovian()).is_empty())
     }
 
     /// All the addresses of the precompiles in isthmus should be in jovian
     #[test]
     fn test_isthmus_precompiles_in_jovian() {
-        let new_isthmus_precompiles = isthmus().difference(Precompiles::cancun());
+        let new_isthmus_precompiles = isthmus().difference(&Precompiles::cancun());
 
         // jovian contains all precompiles that were new in isthmus, without modifications
-        assert!(new_isthmus_precompiles.difference(jovian()).is_empty())
+        assert!(new_isthmus_precompiles.difference(&jovian()).is_empty())
     }
 
     #[test]
@@ -486,7 +486,7 @@ mod tests {
         let default = OpPrecompiles::default().inner.precompiles;
         assert_eq!(latest.len(), default.len());
 
-        let intersection = default.intersection(latest);
+        let intersection = default.intersection(&latest);
         assert_eq!(intersection.len(), latest.len())
     }
 
